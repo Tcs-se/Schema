@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>Manifestoschema</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #121212;
+      color: #f0f0f0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #00ffcc;
+    }
+
+    #newShiftForm, .shift, .filter-section, .summary {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      margin-bottom: 20px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      color: #ccc;
+    }
+
+    input, select, button {
+      padding: 8px;
+      width: 100%;
+      margin-top: 5px;
+      border: 1px solid #444;
+      border-radius: 8px;
+      font-size: 14px;
+      background-color: #2a2a2a;
+      color: #fff;
+    }
+
+    button {
+      background-color: #00b386;
+      color: white;
+      margin-top: 15px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #009973;
+    }
+
+    .shift {
+      position: relative;
+      padding-right: 60px;
+    }
+
+    .editing {
+      background-color: #ff9900 !important;
+    }
+
+    .done {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+
+    .remove-btn, .edit-btn {
+      position: absolute;
+      top: 10px;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 50%;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+
+    .remove-btn {
+      right: 10px;
+      background: #ff4d4d;
+    }
+
+    .edit-btn {
+      right: 45px;
+      background: #ff9900;
+    }
+
+    .markDone {
+      margin-top: 10px;
+      background: #007BFF;
+    }
+
+    .markDone:hover {
+      background: #0056b3;
+    }
+
+    .cancelEditBtn {
+      margin-top: 10px;
+      background-color: #555;
+    }
+
+    .filter-section select {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Manifestoschema</h1>
+
+<div id="newShiftForm">
+  <label for="date">Datum:</label>
+  <input type="date" id="date">
+  <label for="seller">Vem säljer passet:</label>
+  <input type="text" id="seller">
+  <label for="paid">Betalt:</label>
+  <select id="paid">
+    <option value="Ja">Ja</option>
+    <option value="Nej">Nej</option>
+  </select>
+  <label for="amount">Belopp (kr):</label>
+  <input type="number" id="amount" value="500">
+  <button onclick="addShift()">Lägg till pass</button>
+</div>
+
+<div class="filter-section">
+  <label for="filter">Filtrera:</label>
+  <select id="filter" onchange="renderShifts()">
+    <option value="todo">Att göra</option>
+    <option value="done">Gjorda</option>
+    <option value="paid">Betalda</option>
+    <option value="unpaid">Obetalda</option>
+    <option value="all">Alla</option>
+  </select>
+</div>
+
+<div class="summary" id="summary"></div>
+<div id="shiftList"></div>
+
+<script>
+  let shifts = JSON.parse(localStorage.getItem("shifts")) || [];
+  let editingShiftId = null;
+
+  function getWeekNumber(d) {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+  }
+
+  function addShift() {
+    const date = document.getElementById("date").value;
+    const seller = document.getElementById("seller").value;
+    const paid = document.getElementById("paid").value;
+    const amount = parseFloat(document.getElementById("amount").value) || 500;
+
+    if (!date || !seller) {
+      alert("Fyll i alla fält.");
+      return;
+    }
+
+    const shift = {
+      id: Date.now(),
+      date,
+      seller,
+      paid,
+      amount,
+      done: false
+    };
+
+    shifts.push(shift);
+    localStorage.setItem("shifts", JSON.stringify(shifts));
+    renderShifts();
+  }
+
+  function toggleDone(id) {
+    if (!confirm("Är du säker på att du vill markera passet som klart/inte klart?")) return;
+    const shift = shifts.find(s => s.id === id);
+    if (shift) {
+      shift.done = !shift.done;
+      localStorage.setItem("shifts", JSON.stringify(shifts));
+      renderShifts();
+    }
+  }
+
+  function togglePaid(id) {
+    const shift = shifts.find(s => s.id === id);
+    if (shift) {
+      shift.paid = shift.paid === "Ja" ? "Nej" : "Ja";
+      localStorage.setItem("shifts", JSON.stringify(shifts));
+      renderShifts();
+    }
+  }
+
+  function deleteShift(id) {
+    if (!confirm("Är du säker på att du vill ta bort passet?")) return;
+    shifts = shifts.filter(s => s.id !== id);
+    localStorage.setItem("shifts", JSON.stringify(shifts));
+    renderShifts();
+  }
+
+  function editShift(id) {
+    if (!confirm("Är du säker på att du vill redigera passet?")) return;
+    editingShiftId = id;
+    renderShifts();
+  }
+
+  function cancelEdit() {
+    editingShiftId = null;
+    renderShifts();
+  }
+
+  function saveEdit(id) {
+    const date = document.getElementById(`edit-date-${id}`).value;
+    const seller = document.getElementById(`edit-seller-${id}`).value;
+    const paid = document.getElementById(`edit-paid-${id}`).value;
+    const amount = parseFloat(document.getElementById(`edit-amount-${id}`).value) || 0;
+
+    const shift = shifts.find(s => s.id === id);
+    if (shift) {
+      shift.date = date;
+      shift.seller = seller;
+      shift.paid = paid;
+      shift.amount = amount;
+      editingShiftId = null;
+      localStorage.setItem("shifts", JSON.stringify(shifts));
+      renderShifts();
+    }
+  }
+
+  function renderShifts() {
+    const list = document.getElementById("shiftList");
+    const summary = document.getElementById("summary");
+    const filter = document.getElementById("filter").value;
+
+    list.innerHTML = "";
+
+    const filtered = shifts.filter(s => {
+      if (filter === "done") return s.done;
+      if (filter === "todo") return !s.done;
+      if (filter === "paid") return s.paid === "Ja";
+      if (filter === "unpaid") return s.paid === "Nej";
+      return true;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    let total = 0, doneCount = 0, todoCount = 0;
+
+    for (const shift of filtered) {
+      const d = new Date(shift.date);
+      const weekday = d.toLocaleDateString("sv-SE", { weekday: 'long' });
+      const week = getWeekNumber(d);
+
+      const div = document.createElement("div");
+      div.className = "shift" + (shift.done ? " done" : "") + (shift.id === editingShiftId ? " editing" : "");
+
+      const removeBtn = `<button class="remove-btn" onclick="deleteShift(${shift.id})">×</button>`;
+      const editBtn = `<button class="edit-btn" onclick="editShift(${shift.id})">✎</button>`;
+
+      if (shift.id === editingShiftId) {
+        div.innerHTML = `
+          ${removeBtn}${editBtn}
+          <label>Datum:</label><input type="date" id="edit-date-${shift.id}" value="${shift.date}">
+          <label>Säljare:</label><input type="text" id="edit-seller-${shift.id}" value="${shift.seller}">
+          <label>Betalt:</label>
+          <select id="edit-paid-${shift.id}">
+            <option value="Ja" ${shift.paid === "Ja" ? "selected" : ""}>Ja</option>
+            <option value="Nej" ${shift.paid === "Nej" ? "selected" : ""}>Nej</option>
+          </select>
+          <label>Belopp:</label><input type="number" id="edit-amount-${shift.id}" value="${shift.amount}">
+          <button onclick="saveEdit(${shift.id})">Spara</button>
+          <button class="cancelEditBtn" onclick="cancelEdit()">Avbryt redigering</button>
+        `;
+      } else {
+        div.innerHTML = `
+          ${removeBtn}${editBtn}
+          <strong>Datum:</strong> ${shift.date} (${weekday})<br>
+          <strong>Vecka:</strong> ${week}<br>
+          <strong>Säljare:</strong> ${shift.seller}<br>
+          <strong>Betalt:</strong> <a href="#" onclick="togglePaid(${shift.id})">${shift.paid}</a><br>
+          <strong>Belopp:</strong> ${shift.amount} kr
+          <button class="markDone" onclick="toggleDone(${shift.id})">
+            ${shift.done ? "Markera som inte klar" : "Markera som klar"}
+          </button>
+        `;
+      }
+
+      list.appendChild(div);
+
+      if (shift.done) {
+        doneCount++;
+        total += shift.amount;
+      } else {
+        todoCount++;
+      }
+    }
+
+    summary.innerHTML = `
+      <strong>Gjorda pass:</strong> ${doneCount} &nbsp;|&nbsp;
+      <strong>Att göra:</strong> ${todoCount} &nbsp;|&nbsp;
+      <strong>Totalt intjänat:</strong> ${total} kr
+    `;
+  }
+
+  renderShifts();
+</script>
+
+</body>
+</html>
